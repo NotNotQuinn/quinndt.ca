@@ -1,38 +1,56 @@
-# create-svelte
+# quinndt.ca
 
-Everything you need to build a Svelte project, powered by [`create-svelte`](https://github.com/sveltejs/kit/tree/master/packages/create-svelte).
+My personal site :)
 
-## Creating a project
+## HTTP structure
 
-If you're seeing this, you've probably already done this step. Congrats!
+Each direct "top level" route (e.g. `/foo/`) is its own sub-domain.
 
-```bash
-# create a new project in the current directory
-npm create svelte@latest
+Using an NGINX config similar to below, all 404 requests to `/foo/[uri]` are sent to `/[uri]`.
+This means when on `bar.quinndt.ca` and requesting the `/favicon.ico`, it will first
+try `quinndt.ca/foo/favicon.ico` and then `quinndt.ca/favicon.ico` if it is missing.
 
-# create a new project in my-app
-npm create svelte@latest my-app
+###### [Thanks, stackoverflow!](https://stackoverflow.com/questions/21286850)
+```nginx
+upstream quinndt-web-root-server {
+  server localhost:4000;
+}
+
+server {
+  server_name quinndt.ca;
+  server_name www.quinndt.ca;
+
+  location / {
+    proxy_set_header Host $http_host;
+    proxy_intercept_errors on;
+    recursive_error_pages on;
+    error_page 404 = @web-root;
+    proxy_pass http://quinndt-web-root-server/landing;
+  }
+
+  location @web-root {
+    proxy_set_header Host $http_host;
+    proxy_pass http://quinndt-web-root-server;
+  }
+}
 ```
 
-## Developing
+This does not come without downsides:
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+There can be no custom 404 pages per subdomain, because they will be ignored in
+favor of the root's 404. To avoid this, when the root gets a 404 from
+`/[uri]` it should show the original 404 from `/foo/[uri]`. I don't know if this is possible.
 
-```bash
-npm run dev
+And also redirects get all messed up because they reference the `/foo/[uri]` part,
+but are sent to the client. Resulting in requests showing `/foo/[uri]` on the client side. Although they still work, because of the root 404 fallback.
 
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
+Here is a play-by-play:
+ 1. GET `http://bar.quinndt.ca/thing.html`
+ 	* 301 `/foo/thing2.html` <--- Should be `/thing2.html`
+ 2. GET `http://bar.quinndt.ca/foo/thing2.html` <--- What the client sees
+	- GET `http://quinndt.ca/foo/foo/thing2.html`
+		* 404 -> try root
+	- GET `http://quinndt.ca/foo/thing2.html`
+		* 200 OK <--- What the client gets
 
-## Building
-
-To create a production version of your app:
-
-```bash
-npm run build
-```
-
-You can preview the production build with `npm run preview`.
-
-> To deploy your app, you may need to install an [adapter](https://kit.svelte.dev/docs/adapters) for your target environment.
+Although I haven't encountered issues with these, I can see that  its possible I may in the future.
