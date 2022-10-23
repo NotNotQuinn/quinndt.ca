@@ -239,4 +239,6 @@
 	});
 </script>
 
+<!-- Use <noscript /> for initial page loads -->
 {currentText}
+<noscript>{$linkedText}</noscript>
