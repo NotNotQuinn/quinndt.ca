@@ -4,4 +4,4 @@
 // Making svelte send 301 when requesting the /landing/ to /landing thus showing /landing in the end users
 // URL bar.
 // Very annoying.
-export const trailingSlash = 'ignore';
+export const trailingSlash = 'always';
